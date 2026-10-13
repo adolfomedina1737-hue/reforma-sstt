@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reforma SSTT</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1f2937">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Reforma SSTT">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .unidad-btn { transition: all 0.2s; }
+        .unidad-btn:hover { background-color: #d1fae5; border-color: #10b981; }
+        .unidad-btn.active { background-color: #d1fae5; border-color: #10b981; color: #047857; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div id="app"></div>
+
+    <script>
+        // ====== DATOS DEL EDIFICIO ======
+        const plantasData = {
+            'P': { nombre: 'Planta P', descripcion: 'P001 - P022', unidades: [] },
+            '0': { nombre: 'Planta 0', descripcion: '001 - 050', unidades: [] },
+            '1': { nombre: 'Planta 1', descripcion: '101 - 143', unidades: [] },
+            '2': { nombre: 'Planta 2', descripcion: '201 - 243', unidades: [] },
+            '3': { nombre: 'Planta 3', descripcion: '301 - 316 + 301A, 316A', unidades: [] }
+        };
+
+        // ====== GENERAR UNIDADES ======
+        // Planta P: P001 a P022
+        for (let i = 1; i <= 22; i++) {
+            plantasData['P'].unidades.push('P' + i.toString().padStart(3, '0'));
+        }
+
+        // Planta 0: 001 a 050
+        for (let i = 1; i <= 50; i++) {
+            plantasData['0'].unidades.push(i.toString().padStart(3, '0'));
+        }
+
+        // Planta 1: 101 a 143
+        for (let i = 101; i <= 143; i++) {
+            plantasData['1'].unidades.push(i.toString());
+        }
+
+        // Planta 2: 201 a 243
+        for (let i = 201; i <= 243; i++) {
+            plantasData['2'].unidades.push(i.toString());
+        }
+
+        // Planta 3: 301A, 301 a 316, 316A
+        plantasData['3'].unidades.push('301A');
+        for (let i = 301; i <= 316; i++) {
+            plantasData['3'].unidades.push(i.toString());
+        }
+        plantasData['3'].unidades.push('316A');
+
+        // ====== ESTADO DE LA APP ======
+        let selectedUnidad = null;
+        let plantasAbiertas = ['P'];
+
+        // ====== FUNCIONES ======
+        function togglePlanta(plantaId) {
+            if (plantasAbiertas.includes(plantaId)) {
+                plantasAbiertas = plantasAbiertas.filter(id => id !== plantaId);
+            } else {
+                plantasAbiertas.push(plantaId);
+            }
+            render();
+        }
+
+        function selectUnidad(unidadId) {
+            selectedUnidad = unidadId;
+            render();
+        }
+
+        // ====== RENDER ======
+        function render() {
+            const app = document.getElementById('app');
+            const totalUnidades = Object.values(plantasData).reduce((sum, p) => sum + p.unidades.length, 0);
+
+            app.innerHTML = `
+                <!-- Header -->
+                <header class="bg-gray-800 text-white shadow-lg">
+                    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-emerald-500 p-2 rounded-lg">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h1 class="text-xl font-bold">Reforma SSTT</h1>
+                                <p class="text-xs text-gray-300">Sistema de Gestión de Reformas</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="flex items-center gap-2 bg-gray-700 px-3 py-1.5 rounded-lg">
+                                <span class="text-sm">Total unidades: ${totalUnidades}</span>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- Main Content -->
+                <main class="max-w-7xl mx-auto px-6 py-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Explorador -->
+                        <div class="lg:col-span-1">
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div class="bg-gray-800 px-4 py-3 flex items-center justify-between">
+                                    <h2 class="text-white font-semibold">Explorador del Edificio</h2>
+                                    <span class="text-xs text-gray-300 bg-gray-700 px-2 py-1 rounded-full">${totalUnidades} unidades</span>
+                                </div>
+                                <div class="p-2 max-h-[500px] overflow-y-auto">
+                                    ${Object.entries(plantasData).map(([id, planta]) => `
+                                        <div class="mb-1">
+                                            <button onclick="togglePlanta('${id}')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-gray-50">
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        ${plantasAbiertas.includes(id) ? 
+                                                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>' :
+                                                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>'}
+                                                    </svg>
+                                                    <span class="font-medium text-sm text-gray-700">${planta.nombre}</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-xs text-gray-400">${planta.descripcion}</span>
+                                                    <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">${planta.unidades.length}</span>
+                                                </div>
+                                            </button>
+                                            ${plantasAbiertas.includes(id) ? `
+                                                <div class="ml-6 mt-1 grid grid-cols-3 gap-1 pb-2">
+                                                    ${planta.unidades.map(unidad => `
+                                                        <button onclick="selectUnidad('${unidad}')" 
+                                                            class="unidad-btn px-2 py-1.5 text-xs rounded-md border ${selectedUnidad === unidad ? 'active' : 'border-gray-200 text-gray-600'}">
+                                                            ${unidad}
+                                                        </button>
+                                                    `).join('')}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel Principal -->
+                        <div class="lg:col-span-2">
+                            ${selectedUnidad ? `
+                                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                    <div class="flex items-center justify-between mb-6">
+                                        <div>
+                                            <h2 class="text-2xl font-bold text-gray-800">Unidad ${selectedUnidad}</h2>
+                                            <p class="text-sm text-gray-500">Gestión de reformas y cambios</p>
+                                        </div>
+                                        <button class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Nuevo Registro</button>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                            <p class="text-sm text-gray-500">Estado</p>
+                                            <p class="text-lg font-semibold text-emerald-600">En reforma</p>
+                                        </div>
+                                        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                            <p class="text-sm text-gray-500">Registros</p>
+                                            <p class="text-lg font-semibold text-gray-800">3</p>
+                                        </div>
+                                        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                            <p class="text-sm text-gray-500">Progreso</p>
+                                            <p class="text-lg font-semibold text-gray-800">45%</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-4">
+                                        <div class="border border-gray-200 rounded-lg p-4">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <h3 class="font-semibold text-gray-800">Pintura</h3>
+                                                <span class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-full">En progreso</span>
+                                            </div>
+                                            <p class="text-sm text-gray-500">Pintar paredes interiores</p>
+                                        </div>
+                                        <div class="border border-gray-200 rounded-lg p-4">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <h3 class="font-semibold text-gray-800">Suelo</h3>
+                                                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-full">Completado</span>
+                                            </div>
+                                            <p class="text-sm text-gray-500">Cambiar suelo de tarima</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+                                    <div class="bg-emerald-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                                        </svg>
+                                    </div>
+                                    <h2 class="text-xl font-semibold text-gray-800 mb-2">Selecciona una unidad</h2>
+                                    <p class="text-gray-500">Elige una unidad del edificio para ver y gestionar sus reformas</p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                </main>
+            `;
+        }
+
+        // ====== INICIAR ======
+        render();
+    </script>
+    
+    <!-- Registrar Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('Service Worker registrado:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('Error al registrar Service Worker:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
