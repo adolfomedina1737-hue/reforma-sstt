@@ -19,6 +19,9 @@
         .unidad-btn { transition: all 0.2s; }
         .unidad-btn:hover { background-color: #d1fae5; border-color: #10b981; }
         .unidad-btn.active { background-color: #d1fae5; border-color: #10b981; color: #047857; font-weight: 600; }
+        .modal { display: none; }
+        .modal.active { display: flex; }
+        .toast { transition: all 0.3s; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -65,6 +68,9 @@
         // ====== ESTADO DE LA APP ======
         let selectedUnidad = null;
         let plantasAbiertas = ['P'];
+        let registros = JSON.parse(localStorage.getItem('registros') || '{}');
+        let modalAbierto = false;
+        let registroEditando = null;
 
         // ====== FUNCIONES ======
         function togglePlanta(plantaId) {
@@ -81,10 +87,227 @@
             render();
         }
 
+        function getRegistrosUnidad(unidadId) {
+            return registros[unidadId] || [];
+        }
+
+        function guardarRegistros() {
+            localStorage.setItem('registros', JSON.stringify(registros));
+        }
+
+        function abrirModal(registro = null) {
+            modalAbierto = true;
+            registroEditando = registro;
+            renderModal();
+        }
+
+        function cerrarModal() {
+            modalAbierto = false;
+            registroEditando = null;
+            render();
+        }
+
+        function guardarRegistro(event) {
+            event.preventDefault();
+            const form = event.target;
+            const titulo = form.titulo.value;
+            const descripcion = form.descripcion.value;
+            const estado = form.estado.value;
+            const fecha = form.fecha.value;
+            const presupuesto = form.presupuesto.value;
+            const contratista = form.contratista.value;
+
+            if (!registros[selectedUnidad]) {
+                registros[selectedUnidad] = [];
+            }
+
+            if (registroEditando) {
+                // Editar registro existente
+                const index = registros[selectedUnidad].findIndex(r => r.id === registroEditando.id);
+                if (index !== -1) {
+                    registros[selectedUnidad][index] = {
+                        ...registroEditando,
+                        titulo,
+                        descripcion,
+                        estado,
+                        fecha,
+                        presupuesto,
+                        contratista,
+                        actualizado: new Date().toISOString()
+                    };
+                }
+                mostrarToast('Registro actualizado correctamente', 'success');
+            } else {
+                // Nuevo registro
+                const nuevoRegistro = {
+                    id: Date.now().toString(),
+                    titulo,
+                    descripcion,
+                    estado,
+                    fecha,
+                    presupuesto,
+                    contratista,
+                    creado: new Date().toISOString(),
+                    actualizado: new Date().toISOString()
+                };
+                registros[selectedUnidad].push(nuevoRegistro);
+                mostrarToast('Registro creado correctamente', 'success');
+            }
+
+            guardarRegistros();
+            cerrarModal();
+        }
+
+        function eliminarRegistro(registroId) {
+            if (confirm('¿Estás seguro de que quieres eliminar este registro?')) {
+                registros[selectedUnidad] = registros[selectedUnidad].filter(r => r.id !== registroId);
+                guardarRegistros();
+                mostrarToast('Registro eliminado', 'error');
+                render();
+            }
+        }
+
+        function cambiarEstado(registroId, nuevoEstado) {
+            const index = registros[selectedUnidad].findIndex(r => r.id === registroId);
+            if (index !== -1) {
+                registros[selectedUnidad][index].estado = nuevoEstado;
+                registros[selectedUnidad][index].actualizado = new Date().toISOString();
+                guardarRegistros();
+                mostrarToast('Estado actualizado a ' + nuevoEstado, 'success');
+                render();
+            }
+        }
+
+        function mostrarToast(mensaje, tipo = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = mensaje;
+            toast.className = 'toast fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium z-50 ' + 
+                (tipo === 'success' ? 'bg-emerald-600' : 'bg-red-600');
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        function getEstadoColor(estado) {
+            switch (estado) {
+                case 'pendiente': return 'bg-amber-100 text-amber-700';
+                case 'en_progreso': return 'bg-blue-100 text-blue-700';
+                case 'completado': return 'bg-emerald-100 text-emerald-700';
+                case 'cancelado': return 'bg-red-100 text-red-700';
+                default: return 'bg-gray-100 text-gray-700';
+            }
+        }
+
+        function getEstadoLabel(estado) {
+            switch (estado) {
+                case 'pendiente': return 'Pendiente';
+                case 'en_progreso': return 'En Progreso';
+                case 'completado': return 'Completado';
+                case 'cancelado': return 'Cancelado';
+                default: return estado;
+            }
+        }
+
+        function formatFecha(fecha) {
+            if (!fecha) return 'Sin fecha';
+            const d = new Date(fecha);
+            return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function formatMoneda(valor) {
+            if (!valor) return 'Sin presupuesto';
+            return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(valor);
+        }
+
+        // ====== RENDER MODAL ======
+        function renderModal() {
+            const modal = document.getElementById('modal');
+            if (!modalAbierto) {
+                modal.classList.remove('active');
+                return;
+            }
+
+            const r = registroEditando;
+            modal.innerHTML = `
+                <div class="bg-black/50 absolute inset-0" onclick="cerrarModal()"></div>
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg relative z-10 max-h-[90vh] overflow-y-auto">
+                    <div class="bg-gray-800 px-6 py-4 rounded-t-xl flex items-center justify-between">
+                        <h3 class="text-white font-semibold text-lg">${r ? 'Editar Registro' : 'Nuevo Registro'}</h3>
+                        <button onclick="cerrarModal()" class="text-gray-300 hover:text-white">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <form onsubmit="guardarRegistro(event)" class="p-6 space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Título del trabajo</label>
+                            <input type="text" name="titulo" required value="${r ? r.titulo : ''}" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                                placeholder="Ej: Pintura de paredes">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                            <textarea name="descripcion" rows="3" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                                placeholder="Describe el trabajo a realizar">${r ? r.descripcion : ''}</textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                                <select name="estado" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    <option value="pendiente" ${r && r.estado === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+                                    <option value="en_progreso" ${r && r.estado === 'en_progreso' ? 'selected' : ''}>En Progreso</option>
+                                    <option value="completado" ${r && r.estado === 'completado' ? 'selected' : ''}>Completado</option>
+                                    <option value="cancelado" ${r && r.estado === 'cancelado' ? 'selected' : ''}>Cancelado</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                                <input type="date" name="fecha" value="${r ? r.fecha : new Date().toISOString().split('T')[0]}" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Presupuesto (€)</label>
+                                <input type="number" name="presupuesto" step="0.01" value="${r ? r.presupuesto : ''}" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                                    placeholder="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Contratista</label>
+                                <input type="text" name="contratista" value="${r ? r.contratista : ''}" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                                    placeholder="Empresa o persona">
+                            </div>
+                        </div>
+                        <div class="flex gap-3 pt-4">
+                            <button type="submit" 
+                                class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg font-medium transition">
+                                ${r ? 'Actualizar Registro' : 'Crear Registro'}
+                            </button>
+                            <button type="button" onclick="cerrarModal()" 
+                                class="px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">
+                                Cancelar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modal.classList.add('active');
+        }
+
         // ====== RENDER ======
         function render() {
             const app = document.getElementById('app');
             const totalUnidades = Object.values(plantasData).reduce((sum, p) => sum + p.unidades.length, 0);
+            const registrosUnidad = getRegistrosUnidad(selectedUnidad);
+            const completados = registrosUnidad.filter(r => r.estado === 'completado').length;
+            const enProgreso = registrosUnidad.filter(r => r.estado === 'en_progreso').length;
+            const pendientes = registrosUnidad.filter(r => r.estado === 'pendiente').length;
+            const presupuestoTotal = registrosUnidad.reduce((sum, r) => sum + (parseFloat(r.presupuesto) || 0), 0);
 
             app.innerHTML = `
                 <!-- Header -->
@@ -161,40 +384,101 @@
                                             <h2 class="text-2xl font-bold text-gray-800">Unidad ${selectedUnidad}</h2>
                                             <p class="text-sm text-gray-500">Gestión de reformas y cambios</p>
                                         </div>
-                                        <button class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Nuevo Registro</button>
+                                        <button onclick="abrirModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                                            + Nuevo Registro
+                                        </button>
                                     </div>
 
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                    <!-- Estadísticas -->
+                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                         <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                            <p class="text-sm text-gray-500">Estado</p>
-                                            <p class="text-lg font-semibold text-emerald-600">En reforma</p>
+                                            <p class="text-sm text-gray-500">Total</p>
+                                            <p class="text-lg font-semibold text-gray-800">${registrosUnidad.length}</p>
                                         </div>
-                                        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                            <p class="text-sm text-gray-500">Registros</p>
-                                            <p class="text-lg font-semibold text-gray-800">3</p>
+                                        <div class="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                                            <p class="text-sm text-amber-600">Pendientes</p>
+                                            <p class="text-lg font-semibold text-amber-700">${pendientes}</p>
                                         </div>
-                                        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                            <p class="text-sm text-gray-500">Progreso</p>
-                                            <p class="text-lg font-semibold text-gray-800">45%</p>
+                                        <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                            <p class="text-sm text-blue-600">En Progreso</p>
+                                            <p class="text-lg font-semibold text-blue-700">${enProgreso}</p>
+                                        </div>
+                                        <div class="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
+                                            <p class="text-sm text-emerald-600">Completados</p>
+                                            <p class="text-lg font-semibold text-emerald-700">${completados}</p>
                                         </div>
                                     </div>
 
-                                    <div class="space-y-4">
-                                        <div class="border border-gray-200 rounded-lg p-4">
-                                            <div class="flex items-center justify-between mb-2">
-                                                <h3 class="font-semibold text-gray-800">Pintura</h3>
-                                                <span class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-full">En progreso</span>
-                                            </div>
-                                            <p class="text-sm text-gray-500">Pintar paredes interiores</p>
+                                    <!-- Presupuesto total -->
+                                    <div class="bg-gray-800 rounded-lg p-4 mb-6 flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm text-gray-300">Presupuesto Total</p>
+                                            <p class="text-2xl font-bold text-white">${formatMoneda(presupuestoTotal)}</p>
                                         </div>
-                                        <div class="border border-gray-200 rounded-lg p-4">
-                                            <div class="flex items-center justify-between mb-2">
-                                                <h3 class="font-semibold text-gray-800">Suelo</h3>
-                                                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-full">Completado</span>
-                                            </div>
-                                            <p class="text-sm text-gray-500">Cambiar suelo de tarima</p>
+                                        <div class="bg-emerald-500 p-3 rounded-lg">
+                                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
                                         </div>
                                     </div>
+
+                                    <!-- Lista de registros -->
+                                    ${registrosUnidad.length > 0 ? `
+                                        <div class="space-y-4">
+                                            ${registrosUnidad.map(registro => `
+                                                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                                                    <div class="flex items-start justify-between mb-2">
+                                                        <div class="flex-1">
+                                                            <div class="flex items-center gap-2 mb-1">
+                                                                <h3 class="font-semibold text-gray-800">${registro.titulo}</h3>
+                                                                <span class="text-xs text-gray-400">${formatFecha(registro.fecha)}</span>
+                                                            </div>
+                                                            <p class="text-sm text-gray-500">${registro.descripcion || 'Sin descripción'}</p>
+                                                        </div>
+                                                        <div class="flex items-center gap-2 ml-4">
+                                                            <select onchange="cambiarEstado('${registro.id}', this.value)" 
+                                                                class="text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                                                <option value="pendiente" ${registro.estado === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+                                                                <option value="en_progreso" ${registro.estado === 'en_progreso' ? 'selected' : ''}>En Progreso</option>
+                                                                <option value="completado" ${registro.estado === 'completado' ? 'selected' : ''}>Completado</option>
+                                                                <option value="cancelado" ${registro.estado === 'cancelado' ? 'selected' : ''}>Cancelado</option>
+                                                            </select>
+                                                            <button onclick="abrirModal(registro)" class="text-gray-400 hover:text-emerald-600 transition">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                                                </svg>
+                                                            </button>
+                                                            <button onclick="eliminarRegistro('${registro.id}')" class="text-gray-400 hover:text-red-600 transition">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
+                                                        <span class="text-xs px-2 py-1 rounded-full ${getEstadoColor(registro.estado)}">
+                                                            ${getEstadoLabel(registro.estado)}
+                                                        </span>
+                                                        <span class="text-xs text-gray-500">${formatMoneda(registro.presupuesto)}</span>
+                                                        ${registro.contratista ? `<span class="text-xs text-gray-500">• ${registro.contratista}</span>` : ''}
+                                                    </div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    ` : `
+                                        <div class="text-center py-12">
+                                            <div class="bg-emerald-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                                                </svg>
+                                            </div>
+                                            <h3 class="text-lg font-semibold text-gray-800 mb-2">Sin registros</h3>
+                                            <p class="text-gray-500 mb-4">No hay reformas registradas para esta unidad</p>
+                                            <button onclick="abrirModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                                                + Crear primer registro
+                                            </button>
+                                        </div>
+                                    `}
                                 </div>
                             ` : `
                                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
@@ -210,7 +494,15 @@
                         </div>
                     </div>
                 </main>
+
+                <!-- Modal -->
+                <div id="modal" class="modal fixed inset-0 z-40 items-center justify-center p-4"></div>
+
+                <!-- Toast -->
+                <div id="toast" class="toast fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium z-50" style="display: none;"></div>
             `;
+
+            renderModal();
         }
 
         // ====== INICIAR ======
